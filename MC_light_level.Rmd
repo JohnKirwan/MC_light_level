@@ -51,12 +51,12 @@ MC_Ed %>%
 
 About 1% in the blue range - less elsewhere.
 
-We gather these data at various depths into a single *depth* variable.
+We gather these data at various depths into a single *depth* variable. The quanta is the irradiance (converted to moles) by Avogrado's number.
 
 ```{r}
 avogadro = 6.02214076*10^23
 MC_Ed %>% gather(key="depth",value="irrad",-'wv') %>% 
-  mutate(quanta = (irrad / 1000) * avogadro) -> mced
+  mutate(quanta = (irrad / 1e6) * avogadro) -> mced
 mced$depth <- as.numeric(mced$depth)
 head(mced)
 ```
@@ -112,7 +112,7 @@ How many moles of photons (400 nm or above) are present in the light at various 
 mced %>% filter(wv <= 400) %>%
   group_by(depth) %>%
   summarise(umol = signif(sum(irrad),2),
-            quanta = signif(sum(irrad),3)*avogadro
+            quanta = signif(sum(irrad/1e6),3)*avogadro
             ) -> umol
 qplot(data=umol,depth,umol,main='Micromoles of quanta above 400 nm at increasing depth (m)')
 ```
@@ -121,6 +121,6 @@ qplot(data=umol,depth,umol,main='Micromoles of quanta above 400 nm at increasing
 tail(umol)
 ```
 
-
+The irradiance should be 0.026 micromoles of violet - green light.
 
 
