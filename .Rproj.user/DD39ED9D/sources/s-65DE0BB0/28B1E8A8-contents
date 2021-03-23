@@ -1,0 +1,126 @@
+---
+title: "P lividus larvae light levels"
+author: "John Kirwan"
+date: "3/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r include=FALSE}
+library('tidyverse')
+```
+
+
+Need to determine the appropriate light level for sea urchin larvae during the night and day phase of their diel cycle. According to Maurizio, the larvae are probably found at 100 m depth during the day and close to the surface at night. Need to calculate the photon irradiance in the appropriate wavelength range and provide similar light to the animals using aquarium lights. 
+
+Yet, the gulf of Naples is not 100 m deep - where are larvae likely to reside during the day? Moreover, if light is the sole guide - the light level of water will vary dramatically. 
+
+
+#### Climatological irradiance data from Gulf of Naples
+
+The following data come from Hydrolight, courtesy of Maurizio Ribera.
+
+> Units are microEinstein m^-2 s^-1. E_d is downwelling (cosine) E0_ is scalar, both in absolute value at given depth. R and F are for Raman scattering a Fluorescence 0 not accounted for 1 accounted for (I am sending those with 1,1). The incident irradiance is the cloud free irradiance for that date at the site...  ...However E_d(0) is the E_d(0^-). Since the profiles are all at noon you can assume that E_d(0^-) =0.98 E_d(0^+) the incident irradiance at sea surface.
+
+In studies of photosynthesis, one *Einstein* is a mole of photons.
+
+The wavelength bins are 5 nm wide and the stated value is the midpoint of the bin, i.e. the minimum value of 352.5 refers to the 350 - 355 nm bin, whereas the maximum value 862.5 refers to the bin from 860 - 865 nm.  
+
+We bring in the data. I have interpolated the irradiance at 100 m by taking the decrement from 50 m to 75 m at each wv bin (25-30%) and applying this to the 25 m below. 
+
+```{r message=FALSE, warning=FALSE}
+#seq1 <- seq(from=0,to=75,by=5)
+MC_Ed <- read_delim('MC_Ed_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)
+colnames(MC_Ed)[1] <- 'wv'
+MC_Ed$`100` <- ( MC_Ed$`75` / MC_Ed$`50` ) * MC_Ed$`75`
+head(MC_Ed)
+```
+What percentage of light remains compared to the surface?
+
+```{r}
+MC_Ed %>%
+  filter(wv <= 600) %>%
+  mutate(light_left = 100*`100` / `0`) %>%
+  ggplot(aes(y=light_left,x=wv)) + geom_line() + 
+  ggtitle('Percentage light remaining at 100 m depth') + theme_classic()
+```
+
+About 1% in the blue range - less elsewhere.
+
+We gather these data at various depths into a single *depth* variable.
+
+```{r}
+avogadro = 6.02214076*10^23
+MC_Ed %>% gather(key="depth",value="irrad",-'wv') %>% 
+  mutate(quanta = (irrad / 1000) * avogadro) -> mced
+mced$depth <- as.numeric(mced$depth)
+head(mced)
+```
+
+```{r warning=FALSE}
+mced %>% group_by(depth) %>%
+  #filter(wv < 700) %>%
+  filter(depth %in% c(0,5,10,25,50,75,100)) %>%
+ # filter(depth[depth%%2==0]) %>%
+  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() 
+```
+
+```{r warning=FALSE}
+mced %>% group_by(depth) %>%
+  filter(between(wv,350,600)) %>%
+  filter(depth %in% c(50,75,100)) %>%
+ # filter(depth[depth%%2==0]) %>%
+  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() 
+```
+
+Get the relative decrement from 50 m to 75 m depth and apply this to 75 m depth to interpolate 100 m depth. Interpolate between the bins with a smoothing function.
+
+```{r warning=FALSE}
+mced %>% group_by(depth) %>%
+  filter(wv < 600) %>%
+  filter(depth %in% 100) %>%
+ # filter(depth[depth%%2==0]) %>%
+  ggplot(aes(x=wv,y=irrad)) + geom_point() + 
+  geom_smooth(method = "loess", span=0.1)
+```
+
+We want the spectrum produced by the aquarium lights to match that pictured above. However, we should check whether the figure 
+
+There is actually still some power below 400 nm (into UV).
+ 
+```{r}
+mced %>%
+  filter(depth==100,wv < 400) %>% summarise(
+    sum(irrad)) -> below400nm
+
+mced %>%
+  filter(depth==100) %>% summarise(
+    sum(irrad)) -> allat100m
+
+print(paste0('Percentage of photons below 400nm at 100 m depth: ',
+            round(100 * below400nm / allat100m,1),'%'))
+```
+ A non-negligible amount of UV light remains at 100m. We will ignore these photons in finding a scalar value of irradiance that we can match with the PAR-sensitive (400-700 nm) irradiance meter at Stazione Zoologica. 
+
+How many moles of photons (400 nm or above) are present in the light at various depths?
+
+```{r}
+mced %>% filter(wv <= 400) %>%
+  group_by(depth) %>%
+  summarise(umol = signif(sum(irrad),2),
+            quanta = signif(sum(irrad),3)*avogadro
+            ) -> umol
+qplot(data=umol,depth,umol,main='Micromoles of quanta above 400 nm at increasing depth (m)')
+```
+
+```{r}
+tail(umol)
+```
+
+
+
+

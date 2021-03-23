@@ -1,0 +1,5 @@
+"0","avogadro = 6.02214076*10^23"
+"0","MC_Ed %>% gather(key=""depth"",value=""irrad"",-'wv') %>% "
+"0","  mutate(quanta = (irrad / 1000) * avogadro) -> mced"
+"0","mced$depth <- as.numeric(mced$depth)"
+"0","head(mced)"
