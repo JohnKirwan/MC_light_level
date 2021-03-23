@@ -1,5 +1,0 @@
-"0","MC_Ed %>%"
-"0","  filter(wv <= 600) %>%"
-"0","  mutate(light_left = 100*`100` / `0`) %>%"
-"0","  ggplot(aes(y=light_left,x=wv)) + geom_line() + "
-"0","  ggtitle('Percentage light remaining at 100 m depth') + theme_classic()"

@@ -1,5 +1,0 @@
-"0","#seq1 <- seq(from=0,to=75,by=5)"
-"0","MC_Ed <- read_delim('MC_Ed_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)"
-"0","colnames(MC_Ed)[1] <- 'wv'"
-"0","MC_Ed$`100` <- ( MC_Ed$`75` / MC_Ed$`50` ) * MC_Ed$`75`"
-"0","head(MC_Ed)"

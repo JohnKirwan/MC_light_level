@@ -1,6 +1,0 @@
-"0","mced %>% group_by(depth) %>%"
-"0","  filter(wv < 600) %>%"
-"0","  filter(depth %in% 100) %>%"
-"0"," # filter(depth[depth%%2==0]) %>%"
-"0","  ggplot(aes(x=wv,y=irrad)) + geom_point() + "
-"0","  geom_smooth(method = ""loess"", span=0.1)"

@@ -1,6 +1,0 @@
-"0","mced %>% filter(wv <= 400) %>%"
-"0","  group_by(depth) %>%"
-"0","  summarise(umol = signif(sum(irrad),2),"
-"0","            quanta = signif(sum(irrad),3)*avogadro"
-"0","            ) -> umol"
-"0","qplot(data=umol,depth,umol,main='Micromoles of quanta above 400 nm at icreasing depth (m)')"

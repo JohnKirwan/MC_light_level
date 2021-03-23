@@ -1,5 +1,0 @@
-"0","mced %>% group_by(depth) %>%"
-"0","  #filter(wv < 700) %>%"
-"0","  filter(depth %in% c(0,5,10,25,50,75,100)) %>%"
-"0"," # filter(depth[depth%%2==0]) %>%"
-"0","  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() "
