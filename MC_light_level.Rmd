@@ -66,18 +66,20 @@ mced %>% group_by(depth) %>%
   #filter(wv < 700) %>%
   filter(depth %in% c(0,5,10,25,50,75,100)) %>%
  # filter(depth[depth%%2==0]) %>%
-  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() 
+  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() + theme_classic()
 ```
+
+Focus on the deepest three conditions.
 
 ```{r warning=FALSE}
 mced %>% group_by(depth) %>%
   filter(between(wv,350,600)) %>%
   filter(depth %in% c(50,75,100)) %>%
  # filter(depth[depth%%2==0]) %>%
-  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() 
+  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() + theme_classic()
 ```
 
-Get the relative decrement from 50 m to 75 m depth and apply this to 75 m depth to interpolate 100 m depth. Interpolate between the bins with a smoothing function.
+Get the relative decrement from 50 m to 75 m depth and apply this to 75 m depth to interpolate 100 m depth.
 
 ```{r warning=FALSE}
 mced %>% group_by(depth) %>%
@@ -85,7 +87,9 @@ mced %>% group_by(depth) %>%
   filter(depth %in% 100) %>%
  # filter(depth[depth%%2==0]) %>%
   ggplot(aes(x=wv,y=irrad)) + geom_point() + 
-  geom_smooth(method = "loess", span=0.1)
+  geom_col(width=5,alpha=.5,fill="lightblue",col="yellow") +
+ # geom_smooth(method = "loess", span=0.1) + 
+  theme_classic()
 ```
 
 We want the spectrum produced by the aquarium lights to match that pictured above. However, we should check whether the figure 
@@ -114,13 +118,13 @@ mced %>% filter(wv <= 400) %>%
   summarise(umol = signif(sum(irrad),2),
             quanta = signif(sum(irrad/1e6),3)*avogadro
             ) -> umol
-qplot(data=umol,depth,umol,main='Micromoles of quanta above 400 nm at increasing depth (m)')
+qplot(data=umol,depth,umol,main='Micromoles of quanta above 400 nm at increasing depth (m)') + theme_classic()
 ```
 
 ```{r}
 tail(umol)
 ```
 
-The irradiance should be 0.026 micromoles of violet - green light.
+The irradiance should be ~ 0.03 micromoles of violet - green light.
 
 
