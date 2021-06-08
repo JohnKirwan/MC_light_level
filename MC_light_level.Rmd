@@ -24,9 +24,25 @@ Yet, the gulf of Naples is not 100 m deep - where are larvae likely to reside du
 
 The following data come from Hydrolight, courtesy of Maurizio Ribera.
 
-> Units are microEinstein m^-2 s^-1. E_d is downwelling (cosine) E0_ is scalar, both in absolute value at given depth. R and F are for Raman scattering a Fluorescence 0 not accounted for 1 accounted for (I am sending those with 1,1). The incident irradiance is the cloud free irradiance for that date at the site...  ...However E_d(0) is the E_d(0^-). Since the profiles are all at noon you can assume that E_d(0^-) =0.98 E_d(0^+) the incident irradiance at sea surface.
+> Units are microEinstein m^-2 s^-1. E_d is downwelling (cosine) E0_ is scalar, both in absolute value at given depth. R and F are for Raman scattering a Fluorescence 0 not accounted for 1 accounted for (I am sending those with 1,1). The incident irradiance is the cloud free irradiance for that date at the site.
 
-In studies of photosynthesis, one *Einstein* is a mole of photons.
+> The incident irradiance is the cloud free irradiance for that date at the site. However E_d(0) is the E_d(0^-). Since the profiles are all at noon you can assume that E_d(0^-) =0.98 E_d(0^+) the incident irradiance at sea surface.
+
+The directed irradiance given as 0m is actually below the surface and should be 98% of the value just above the surface. 
+
+The values include both Raman scattering and fluorescence. The incident irradiance is the cloud free irradiance for that date at the site at noon.
+
+E<sub>d</sub> is *directed irradiance*. E<sub>0</sub> is *scalar irradiance*. 
+
+> The technology of measurement of scalar irradiance is essentially the same as that of irradiance with the exception of the collector. Since this must respond equally to light from all directions, it has to be spherical. 
+
+> Once you have absolutely calibrated your system, irradiance measurements are straightforward. Remember from chapter 2 that two kinds of irradiance are the most useful, vector and scalar. Vector irradiance measures light hitting a surface from all angles in one hemisphere, but weights the amount of the light from each direction by the cosine of its angle from the perpendicular to the surface. Scalar irradiance measures all the light intersecting a surface from the whole sphere, giving all directions equal weight. Both properties are measured using special sampling optics.
+
+> Scalar irradiance does not suffer from the orientation dependence of vector irradiance. Scalar irradiance is given by the number of photons that pass through the surface of a small sphere over a given period of time. It has the same units as vector irradiance, but the directions of the photons do not matter. So, for any location in space there is only one scalar irradiance, while vector irradiance depends on the orientation of the detector.
+
+For these purposes, scalar irradiance makes more sense.
+
+Those who study phytoplankton use *scalar irradiance*. In studies of photosynthesis, one *Einstein* is a mole of photons.
 
 The wavelength bins are 5 nm wide and the stated value is the midpoint of the bin, i.e. the minimum value of 352.5 refers to the 350 - 355 nm bin, whereas the maximum value 862.5 refers to the bin from 860 - 865 nm.  
 
@@ -34,16 +50,19 @@ We bring in the data. I have interpolated the irradiance at 100 m by taking the 
 
 ```{r message=FALSE, warning=FALSE}
 #seq1 <- seq(from=0,to=75,by=5)
-MC_Ed <- read_delim('MC_Ed_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)
-colnames(MC_Ed)[1] <- 'wv'
-MC_Ed$`100` <- ( MC_Ed$`75` / MC_Ed$`50` ) * MC_Ed$`75`
-head(MC_Ed)
+E0_df <- read_delim('MC_E0_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)
+colnames(E0_df)[1] <- 'wv'
+E0_df$`100` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`75`  # 25 m change at depth
+E0_df$`125` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`100` # 25 m change at depth
+E0_df$`150` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`125` # 25 m change at depth
+E0_df$`165` <- ( E0_df$`75` / E0_df$`60` ) * E0_df$`150` # 10 m change at depth
+head(E0_df)
 ```
 What percentage of light remains compared to the surface?
 
 ```{r}
-MC_Ed %>%
-  filter(wv <= 600) %>%
+E0_df %>%
+  filter(between(wv,300,600)) %>%
   mutate(light_left = 100*`100` / `0`) %>%
   ggplot(aes(y=light_left,x=wv)) + geom_line() + 
   ggtitle('Percentage light remaining at 100 m depth') + theme_classic()
@@ -54,15 +73,24 @@ About 1% in the blue range - less elsewhere.
 We gather these data at various depths into a single *depth* variable. The quanta is the irradiance (converted to moles) by Avogrado's number.
 
 ```{r}
-avogadro = 6.02214076*10^23
-MC_Ed %>% gather(key="depth",value="irrad",-'wv') %>% 
-  mutate(quanta = (irrad / 1e6) * avogadro) -> mced
-mced$depth <- as.numeric(mced$depth)
-head(mced)
+E0_df %>% gather(key="depth",value="irrad",-'wv') %>% 
+  group_by(depth,wv) %>%
+  mutate(irrad_SD = round(sd(irrad),2),
+         quanta   = (irrad / 1e6) * 6.02214076e23
+         ) -> scalar_irrad_df
+scalar_irrad_df$depth <- as.numeric(scalar_irrad_df$depth)
+head(scalar_irrad_df)
+
 ```
 
+
+
+
+
+
+
 ```{r warning=FALSE}
-mced %>% group_by(depth) %>%
+scalar_irrad_df %>% group_by(depth) %>%
   #filter(wv < 700) %>%
   filter(depth %in% c(0,5,10,25,50,75,100)) %>%
  # filter(depth[depth%%2==0]) %>%
@@ -72,7 +100,7 @@ mced %>% group_by(depth) %>%
 Focus on the deepest three conditions.
 
 ```{r warning=FALSE}
-mced %>% group_by(depth) %>%
+scalar_irrad_df %>% group_by(depth) %>%
   filter(between(wv,350,600)) %>%
   filter(depth %in% c(50,75,100)) %>%
  # filter(depth[depth%%2==0]) %>%
@@ -82,7 +110,7 @@ mced %>% group_by(depth) %>%
 Get the relative decrement from 50 m to 75 m depth and apply this to 75 m depth to interpolate 100 m depth.
 
 ```{r warning=FALSE}
-mced %>% group_by(depth) %>%
+scalar_irrad_df %>% group_by(depth) %>%
   filter(wv < 600) %>%
   filter(depth %in% 100) %>%
  # filter(depth[depth%%2==0]) %>%
@@ -97,34 +125,42 @@ We want the spectrum produced by the aquarium lights to match that pictured abov
 There is actually still some power below 400 nm (into UV).
  
 ```{r}
-mced %>%
-  filter(depth==100,wv < 400) %>% summarise(
-    sum(irrad)) -> below400nm
-
-mced %>%
-  filter(depth==100) %>% summarise(
-    sum(irrad)) -> allat100m
-
 print(paste0('Percentage of photons below 400nm at 100 m depth: ',
-            round(100 * below400nm / allat100m,1),'%'))
+  signif(100 * sum(scalar_irrad_df$quanta[
+    scalar_irrad_df$wv < 400 & scalar_irrad_df$depth==100]) / 
+    sum(scalar_irrad_df$quanta[scalar_irrad_df$depth==0 & scalar_irrad_df$wv < 400]),
+  2),'%'))
 ```
  A non-negligible amount of UV light remains at 100m. We will ignore these photons in finding a scalar value of irradiance that we can match with the PAR-sensitive (400-700 nm) irradiance meter at Stazione Zoologica. 
 
-How many moles of photons (400 nm or above) are present in the light at various depths?
+How many moles of photons (400 - 700) are present in the light at various depths?
 
 ```{r}
-mced %>% filter(wv <= 400) %>%
+scalar_irrad_df %>% filter(between(wv,400,700)) %>%
   group_by(depth) %>%
-  summarise(umol = signif(sum(irrad),2),
-            quanta = signif(sum(irrad/1e6),3)*avogadro
-            ) -> umol
-qplot(data=umol,depth,umol,main='Micromoles of quanta above 400 nm at increasing depth (m)') + theme_classic()
+  summarise(umol    = signif(sum(irrad),2),
+            umol_sd = signif(sd(irrad),1),
+            quanta  = signif(sum(irrad/1e6)*6.02214076e23,3),
+            ) -> scalar_irradiance_df
+qplot(data=scalar_irradiance_df,depth,umol,main='Micromoles of quanta between 400 nm and 700 nm at increasing depth (m)') + theme_classic() #+ ylim(0,.2)
 ```
 
 ```{r}
-tail(umol)
+scalar_irradiance_df
+```
+The irradiance should be ~ 0.4 micromoles of violet - green light. Lit is a measure of radiance, not irradiance and is not comparable.
+
+Irradiance at California beach at late nautical twilight: 1.5e8 photons/cm^2/nm from 350 to 700 nm. To get it in SI units.
+
+```{r Twilight}
+1.5e8 * 350 * 100^2 # to metres squared
 ```
 
-The irradiance should be ~ 0.03 micromoles of violet - green light.
+
+```{r Daylight}
+4.5e14 * 350 * 100^2
+```
+
+
 
 
