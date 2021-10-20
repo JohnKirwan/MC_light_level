@@ -162,5 +162,12 @@ Irradiance at California beach at late nautical twilight: 1.5e8 photons/cm^2/nm 
 ```
 
 
+#### Light level at 5m depth
 
+The downwelling light at 5 m is:
+
+```{r}
+sum(E0_df$`5`[E0_df$wv >= 400 & E0_df$wv <= 700])
+```
+umol m^-2 s^-1.
 
