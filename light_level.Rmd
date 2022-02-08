@@ -11,7 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r include=FALSE}
-library('tidyverse')
+library('dplyr')
+library('ggplot2')
 ```
 
 
@@ -25,6 +26,8 @@ Yet, the gulf of Naples is not 100 m deep - where are larvae likely to reside du
 The following data come from Hydrolight, courtesy of Maurizio Ribera.
 
 > Units are microEinstein m^-2 s^-1. E_d is downwelling (cosine) E0_ is scalar, both in absolute value at given depth. R and F are for Raman scattering a Fluorescence 0 not accounted for 1 accounted for (I am sending those with 1,1). The incident irradiance is the cloud free irradiance for that date at the site.
+
+The values are **per nm in the binwidth range**
 
 > The incident irradiance is the cloud free irradiance for that date at the site. However E_d(0) is the E_d(0^-). Since the profiles are all at noon you can assume that E_d(0^-) =0.98 E_d(0^+) the incident irradiance at sea surface.
 
@@ -44,13 +47,13 @@ For these purposes, scalar irradiance makes more sense.
 
 Those who study phytoplankton use *scalar irradiance*. In studies of photosynthesis, one *Einstein* is a mole of photons.
 
-The wavelength bins are 5 nm wide and the stated value is the midpoint of the bin, i.e. the minimum value of 352.5 refers to the 350 - 355 nm bin, whereas the maximum value 862.5 refers to the bin from 860 - 865 nm.  
+The wavelength bins are 5 nm wide and the stated value is the midpoint of the bin, i.e. the minimum value of 352.5 refers to the 350 - 355 nm bin, whereas the maximum value 862.5 refers to the bin from 860 - 865 nm.  The values are nonetheless per nm. 
 
 We bring in the data. I have interpolated the irradiance at 100 m by taking the decrement from 50 m to 75 m at each wv bin (25-30%) and applying this to the 25 m below. 
 
 ```{r message=FALSE, warning=FALSE}
 #seq1 <- seq(from=0,to=75,by=5)
-E0_df <- read_delim('MC_E0_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)
+E0_df <- readr::read_delim('MC_E0_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)
 colnames(E0_df)[1] <- 'wv'
 E0_df$`100` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`75`  # 25 m change at depth
 E0_df$`125` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`100` # 25 m change at depth
@@ -70,21 +73,17 @@ E0_df %>%
 
 About 1% in the blue range - less elsewhere.
 
-We gather these data at various depths into a single *depth* variable. The quanta is the irradiance (converted to moles) by Avogrado's number.
+We gather these data at various depths into a single *depth* variable. The quanta is the irradiance (converted to moles) by Avogrado's number. We multiply it by 5 (the binwidth),as values are per nm in the specfied range.
 
 ```{r}
-E0_df %>% gather(key="depth",value="irrad",-'wv') %>% 
+E0_df %>% tidyr::gather(key="depth",value="irrad",-'wv') %>% 
   group_by(depth,wv) %>%
   mutate(irrad_SD = round(sd(irrad),2),
          quanta   = (irrad / 1e6) * 6.02214076e23
          ) -> scalar_irrad_df
 scalar_irrad_df$depth <- as.numeric(scalar_irrad_df$depth)
 head(scalar_irrad_df)
-
 ```
-
-
-
 
 
 
@@ -131,34 +130,22 @@ print(paste0('Percentage of photons below 400nm at 100 m depth: ',
     sum(scalar_irrad_df$quanta[scalar_irrad_df$depth==0 & scalar_irrad_df$wv < 400]),
   2),'%'))
 ```
- A non-negligible amount of UV light remains at 100m. We will ignore these photons in finding a scalar value of irradiance that we can match with the PAR-sensitive (400-700 nm) irradiance meter at Stazione Zoologica. 
+ A non-negligible amount of UV light remains at 100m. We will ignore these photons in finding a scalar value of irradiance that we can match with the PAR-sensitive (400-700 nm) irradiance meter at Stazione Zoologica Anton Dohrn. 
+
+### Sum values
 
 How many moles of photons (400 - 700) are present in the light at various depths?
+
+Multiply the values by 5 (as the binwidth is 5 nm and values are per nm in that range).
 
 ```{r}
 scalar_irrad_df %>% filter(between(wv,400,700)) %>%
   group_by(depth) %>%
-  summarise(umol    = signif(sum(irrad),2),
-            umol_sd = signif(sd(irrad),1),
-            quanta  = signif(sum(irrad/1e6)*6.02214076e23,3),
-            ) -> scalar_irradiance_df
-qplot(data=scalar_irradiance_df,depth,umol,main='Micromoles of quanta between 400 nm and 700 nm at increasing depth (m)') + theme_classic() #+ ylim(0,.2)
-```
-
-```{r}
-scalar_irradiance_df
-```
-The irradiance should be ~ 0.4 micromoles of violet - green light. Lit is a measure of radiance, not irradiance and is not comparable.
-
-Irradiance at California beach at late nautical twilight: 1.5e8 photons/cm^2/nm from 350 to 700 nm. To get it in SI units.
-
-```{r Twilight}
-1.5e8 * 350 * 100^2 # to metres squared
-```
-
-
-```{r Daylight}
-4.5e14 * 350 * 100^2
+  summarise(umol    = signif(5 * sum(irrad),2),
+            umol_sd = signif(5 * sd(irrad),1),
+            quanta  = signif(5 * sum(irrad/1e6)*6.02214076e23,3),
+            ) -> irrad_sum_df
+qplot(data=irrad_sum_df,depth,umol,main='Micromoles of quanta between 400 nm and 700 nm at increasing depth (m)') + theme_classic() #+ ylim(0,.2)
 ```
 
 
@@ -167,7 +154,78 @@ Irradiance at California beach at late nautical twilight: 1.5e8 photons/cm^2/nm 
 The downwelling light at 5 m is:
 
 ```{r}
-sum(E0_df$`5`[E0_df$wv >= 400 & E0_df$wv <= 700])
+sum(5 * E0_df$`5`[E0_df$wv >= 400 & E0_df$wv <= 700])
 ```
 umol m^-2 s^-1.
+
+## Converting Spectral Irradiance to Lux
+
+```{r}
+irrad2lux <- read.csv('spectral_irradiance_2_lux.csv')
+head(irrad2lux)
+```
+
+Planck's constant * speed of light / wavelength gives the energy of a photon in joules. This times the number of quanta per second gives the Wattage (1 W = 1 J / s). 
+
+```{r}
+h <- 6.62607015e-34 # Planck's constant
+c <- 299792458e9    # speed of light in nm
+
+scalar_irrad_df |> select(-irrad_SD) |>
+  mutate(quanta_in_5nm_bin = quanta * 5) |>
+  mutate(W_in_5nm_bin = quanta_in_5nm_bin * h * (c/wv) ) -> Watts_5nm_bin
+```
+
+Add new 10 nm bins.
+
+```{r}
+bins_10nm <- seq(from=385,to=865,by=10)
+Watts_5nm_bin %>% 
+  mutate(Wv10nm = bins_10nm[which.min(abs(bins_10nm - wv))]-5) -> Watts_5nm_bin
+head(Watts_5nm_bin)
+```
+Sum the power into the 10 nm bins. The values were previously multiplied by 5 to reverse the averaging per nm and the totals per 5 nm bin were added to get totals per 10 nm bin. These are below divided by 10 to get per nm averages, i.e. spectral irradiance. 
+
+```{r}
+Watts_5nm_bin %>% group_by(Wv10nm,depth) %>% 
+  summarise(W_in_10nm_bin = sum(W_in_5nm_bin),
+            W_in_10nm_per_nm = W_in_10nm_bin/10,
+            quanta_in_10nm_bin = sum(quanta_in_5nm_bin)) -> Watts_10nm_bin
+head(Watts_10nm_bin)
+```
+
+Taken from Sönke's book
+
+> You can convert an irradiance spectrum E(λ) given in W/m2/nm to lux using:
+
+$ lux = 637 \sum_{\lambda=380}^{\lambda=780} E(\lambda) * \overline{y} (\lambda) * \Delta \lambda  \  $
+
+where $\overline{y} (\lambda)$ is the photopic (light-adapted) luminosity curve for humans (given in the table below). In other words, to calculate lux, you multiply your irradiance spectrum (first binned into 10 nm intervals) by the luminosity curve and by $\Delta \lambda$ (which is **10 nm** in this case) and then add up all the products. Then multiply this final sum by 673. This is most easily done in a spreadsheet program. Remember that your irradiance must be in watts, since that’s how the luminosity curve was created. The values of (λ) below 400 nm and above 700 nm are small, so don’t worry if you don’t have irradiance data for this range. The table is in *'spectral_irradiance_2_lux.csv'*.
+
+
+The human photometric conversions are in 10 nm bins, whereas the Neapolitan values are in 5 nm bins. Therefore, average the Naples values into 10 nm bins, get as Watts (all above) and calculate. 
+
+Get only relevant depths and wvs
+
+```{r}
+Watts_10nm_bin %>% filter(depth == 0, between(Wv10nm,380,780)) -> Watts_10nm_0m
+Watts_10nm_0m$y_bar_lambda <- irrad2lux$y_bar_lambda
+head(Watts_10nm_0m)
+```
+
+```{r}
+Watts_10nm_0m |>
+  mutate(lux = 637*(W_in_10nm_per_nm)*(y_bar_lambda*10),
+         klx = lux / 1000) -> Watts_10nm_0m
+head(Watts_10nm_0m)
+```
+
+```{r}
+sum(Watts_10nm_0m$klx)
+```
+This value is slightly below what would be expected from direct sunlight.
+
+
+
+
 
