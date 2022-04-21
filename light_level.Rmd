@@ -50,7 +50,6 @@ Those who study phytoplankton use *scalar irradiance*. In studies of photosynthe
 The wavelength bins are 5 nm wide and the stated value is the midpoint of the bin, i.e. the minimum value of 352.5 refers to the 350 - 355 nm bin, whereas the maximum value 862.5 refers to the bin from 860 - 865 nm.  The values are nonetheless per nm. 
 
 We bring in the data. I have interpolated the irradiance at 100 m by taking the decrement from 50 m to 75 m at each wv bin (25-30%) and applying this to the 25 m below. 
-
 ```{r message=FALSE, warning=FALSE}
 #seq1 <- seq(from=0,to=75,by=5)
 E0_df <- readr::read_delim('MC_E0_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)
@@ -61,6 +60,7 @@ E0_df$`150` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`125` # 25 m change at depth
 E0_df$`165` <- ( E0_df$`75` / E0_df$`60` ) * E0_df$`150` # 10 m change at depth
 head(E0_df)
 ```
+
 What percentage of light remains compared to the surface?
 
 ```{r}
@@ -148,7 +148,6 @@ scalar_irrad_df %>% filter(between(wv,400,700)) %>%
 qplot(data=irrad_sum_df,depth,umol,main='Micromoles of quanta between 400 nm and 700 nm at increasing depth (m)') + theme_classic() #+ ylim(0,.2)
 ```
 
-
 #### Light level at 5m depth
 
 The downwelling light at 5 m is:
@@ -156,6 +155,7 @@ The downwelling light at 5 m is:
 ```{r}
 sum(5 * E0_df$`5`[E0_df$wv >= 400 & E0_df$wv <= 700])
 ```
+
 umol m^-2 s^-1.
 
 ## Converting Spectral Irradiance to Lux
