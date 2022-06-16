@@ -2,23 +2,36 @@
 title: "P lividus larvae light levels"
 author: "John Kirwan"
 date: "3/19/2021"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
-
+ 
+ 
 ```{r include=FALSE}
 library('dplyr')
+library('tidyr')
 library('ggplot2')
 ```
 
 
+> Male and female individuals aggregate for spawning and simultaneously release their gametes (Cherbonnier, 1954). In Port-Cros Bay, France, spawning aggregations of 10 to 20 individuals occur at dusk on prominent stones or at the top of leaves of *P. oceanica*.
+
+> In the northwestern Mediterranean, larvae are present in the plankton year-round. One or two peaks occur, the first in May to June, the second, if present, from September to November (Fenaux, 1968; Fenaux and Pedrotti, 1988; Pedrotti and Fenaux, 1992; Pedrotti, 1993). The duration of the planktonic life of larvae of P. lividus has been estimated to be 23 to 29 days in situ (Pedrotti, 1993; but see Lozano et al., 1995), but it can drop to 14 to 19 days in vitro with non-limiting food (George et al., 1989; Fenaux et al., 1992).
+
 Need to determine the appropriate light level for sea urchin larvae during the night and day phase of their diel cycle. According to Maurizio, the larvae are probably found at 100 m depth during the day and close to the surface at night. Need to calculate the photon irradiance in the appropriate wavelength range and provide similar light to the animals using aquarium lights. 
 
 Yet, the gulf of Naples is not 100 m deep - where are larvae likely to reside during the day? Moreover, if light is the sole guide - the light level of water will vary dramatically. 
+
+MC is the Gulf of Naples, i01 is the Ionian sea, Nb4 is the Northern Mediterranea sea, and alt is the central Tyrrhenian sea. EMTEC is also the Ionian sea. 
+
+LTER-MC: Marechiara sampling point.
+> The sampling site LTER-MC is located 2 miles offshore the city of Naples, on the 75 m isobath, at the border between the coastal eutrophic system influenced by land runoff and the offshore oligotrophic waters with characteristics of the southern Tyrrhenian Sea.
 
 
 #### Climatological irradiance data from Gulf of Naples
@@ -49,182 +62,354 @@ Those who study phytoplankton use *scalar irradiance*. In studies of photosynthe
 
 The wavelength bins are 5 nm wide and the stated value is the midpoint of the bin, i.e. the minimum value of 352.5 refers to the 350 - 355 nm bin, whereas the maximum value 862.5 refers to the bin from 860 - 865 nm.  The values are nonetheless per nm. 
 
-We bring in the data. I have interpolated the irradiance at 100 m by taking the decrement from 50 m to 75 m at each wv bin (25-30%) and applying this to the 25 m below. 
+We bring in the data. I had interpolated the irradiance at 100 m by taking the decrement from 50 m to 75 m at each wv bin (25-30%) and applying this to the 25 m below. 
+
+> It is definitely reasonable to obtain deeper value using the average $K(\lambda)$ over, say, 50 to 60 m. 
+>
+> -- <cite>Maurizio di Montesanto</cite>
+
+Therefore, the interpolation is over the preceding 50 m, the proportion of light remaining being squared to get the change over the subsequent 25 m - the two results being very similar.
+
 ```{r message=FALSE, warning=FALSE}
 #seq1 <- seq(from=0,to=75,by=5)
-E0_df <- readr::read_delim('MC_E0_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)
-colnames(E0_df)[1] <- 'wv'
-E0_df$`100` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`75`  # 25 m change at depth
-E0_df$`125` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`100` # 25 m change at depth
-E0_df$`150` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`125` # 25 m change at depth
-E0_df$`165` <- ( E0_df$`75` / E0_df$`60` ) * E0_df$`150` # 10 m change at depth
-head(E0_df)
+# E0_df <- readr::read_delim('MC_E0_R1F1.txt',delim=',')#,# col_names = c('wv',seq1),skip=1)
+wide_sea <- readr::read_delim('light_level.csv',delim=';',col_types = "cfffn")
+
+# colnames(E0_df)[1] <- 'wv' 
+# #E0_df$`100` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`75`  # 25 m change at depth
+# E0_df$`100` <- sqrt( E0_df$`75`/E0_df$`25`) * E0_df$`75` # 25 m change at depth
+# E0_df$`125` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`100` # 25 m change at depth
+# E0_df$`150` <- ( E0_df$`75` / E0_df$`50` ) * E0_df$`125` # 25 m change at depth
+# head(E0_df)
+```
+ 
+Add a column with irradiance in quanta arther than umols thereof. 
+ 
+```{r}
+wide_sea |> tidyr::pivot_longer(cols = "0":"200",names_to = "depth",
+                                values_to = "umol") |> 
+  drop_na(umol) -> water_cols
+water_cols$depth <- as.numeric(water_cols$depth)
+
+water_cols |>
+  mutate(quanta = (umol/1e6) * 6.02214076e23 ) -> water_cols
 ```
 
-What percentage of light remains compared to the surface?
+
+The data include measurements at E0 and Ed. They are similar, with the E0 slightly higher, so we will remove the Ed for simplicity.
 
 ```{r}
-E0_df %>%
-  filter(between(wv,300,600)) %>%
-  mutate(light_left = 100*`100` / `0`) %>%
-  ggplot(aes(y=light_left,x=wv)) + geom_line() + 
-  ggtitle('Percentage light remaining at 100 m depth') + theme_classic()
+water_cols <- droplevels( water_cols[water_cols$E == "E0",])
 ```
 
-About 1% in the blue range - less elsewhere.
+  
+
+What percentage of light remains compared to the surface?
+ 
+
+```{r}
+# propJoe <- function(umol,depth) {
+#   prop <- 100*umol[depth==10]/umol[depth==0]
+#   return(prop)
+# }
+
+water_cols |> group_by(sea,E,wv) |>
+  filter(between(wv,300,700)) |>
+  summarise(`10` = 100*umol[depth==10]/umol[depth==0],
+            `20` = 100*umol[depth==20]/umol[depth==0],
+            #`150` = 100*umol[depth==100]/umol[depth==0],
+            #`200` = 100*umol[depth==200]/umol[depth==0] ,
+            ) |>
+    pivot_longer(cols= num_range("",0:200),names_to="depth",
+                 values_to = "proportion" ) -> shallow
+shallow$depth <- as.numeric(shallow$depth)
+
+shallow |> 
+  ggplot(aes(y=proportion,x=wv,color=sea)) + 
+  facet_wrap(vars(depth),scales = "free_y") +
+  geom_line(aes(linetype=E)) + 
+  ggtitle('Percentage photons
+          remaining at depths by wavelength') + theme_classic() +
+  ylab('Surface photons remaining (%)') 
+```
+
+Where the MC (Naples) data cuts off is below:
+
+
+```{r}
+# propJoe <- function(umol,depth) {
+#   prop <- 100*umol[depth==10]/umol[depth==0]
+#   return(prop)
+# }
+
+water_cols |> group_by(sea,E,wv) |>
+  filter(between(wv,300,700)) |>
+  summarise(`100` = 100*umol[depth==100]/umol[depth==0],
+            `200` = 100*umol[depth==200]/umol[depth==0] ,
+            ) |>
+    pivot_longer(cols= num_range("",0:200),names_to="depth", values_to = "proportion" ) -> deep
+deep$depth <- as.numeric(deep$depth)
+
+deep |> 
+  ggplot(aes(y=proportion,x=wv,color=sea)) + 
+  facet_wrap(vars(depth),scales = "free_y") +
+  geom_line(aes(linetype=E)) + 
+  ggtitle('Percentage photons remaining at depths by wavelength') + theme_classic() + ylab('Surface photons remaining (%)') 
+
+# E0_df |>
+#   filter(between(wv,300,700)) |>
+#   mutate(light_left = 100*`100` / `0`) |>
+#   ggplot(aes(y=light_left,x=wv)) + geom_line() + 
+#   ggtitle('Percentage light remaining at 100 m depth from 300-700 nm') + theme_classic()
+```
+
+About 1% in the blue range - less elsewhere. The North Mediterranean water is turbid. 
 
 We gather these data at various depths into a single *depth* variable. The quanta is the irradiance (converted to moles) by Avogrado's number. We multiply it by 5 (the binwidth),as values are per nm in the specfied range.
 
 ```{r}
-E0_df %>% tidyr::gather(key="depth",value="irrad",-'wv') %>% 
-  group_by(depth,wv) %>%
-  mutate(irrad_SD = round(sd(irrad),2),
-         quanta   = (irrad / 1e6) * 6.02214076e23
-         ) -> scalar_irrad_df
-scalar_irrad_df$depth <- as.numeric(scalar_irrad_df$depth)
-head(scalar_irrad_df)
+# E0_df |> tidyr::gather(key="depth",value="irrad",-'wv') |> 
+#   group_by(depth,wv) |>
+#   mutate(irrad_SD = round(sd(irrad),2),
+#          quanta   = (irrad / 1e6) * 6.02214076e23
+#          ) -> scalar_irrad_df
+# scalar_irrad_df$depth <- as.numeric(scalar_irrad_df$depth)
+# head(scalar_irrad_df)
 ```
 
+Plot the quanta for shallower water.
 
-
-
-```{r warning=FALSE}
-scalar_irrad_df %>% group_by(depth) %>%
-  #filter(wv < 700) %>%
-  filter(depth %in% c(0,5,10,25,50,75,100)) %>%
- # filter(depth[depth%%2==0]) %>%
-  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() + theme_classic()
+```{r}
+water_cols |> group_by(E,sea) |>
+  filter(E=='E0' & depth %in% c(0,10,20) & between(wv,350,650)) |>
+ # filter(depth[depth%%2==0]) |>
+  ggplot(aes(x=wv,y=quanta,color=-depth)) + geom_point() +
+  theme_classic() + 
+  scale_y_log10() + facet_wrap(vars(sea))#,scales = "free_y")
 ```
 
-Focus on the deepest three conditions.
-
-```{r warning=FALSE}
-scalar_irrad_df %>% group_by(depth) %>%
-  filter(between(wv,350,600)) %>%
-  filter(depth %in% c(50,75,100)) %>%
- # filter(depth[depth%%2==0]) %>%
-  ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() + theme_classic()
-```
-
-Get the relative decrement from 50 m to 75 m depth and apply this to 75 m depth to interpolate 100 m depth.
-
-```{r warning=FALSE}
-scalar_irrad_df %>% group_by(depth) %>%
-  filter(wv < 600) %>%
-  filter(depth %in% 100) %>%
- # filter(depth[depth%%2==0]) %>%
-  ggplot(aes(x=wv,y=irrad)) + geom_point() + 
-  geom_col(width=5,alpha=.5,fill="lightblue",col="yellow") +
- # geom_smooth(method = "loess", span=0.1) + 
-  theme_classic()
-```
-
-We want the spectrum produced by the aquarium lights to match that pictured above. However, we should check whether the figure 
-
-There is actually still some power below 400 nm (into UV).
+ Plot the quanta for deeper water.
  
 ```{r}
-print(paste0('Percentage of photons below 400nm at 100 m depth: ',
-  signif(100 * sum(scalar_irrad_df$quanta[
-    scalar_irrad_df$wv < 400 & scalar_irrad_df$depth==100]) / 
-    sum(scalar_irrad_df$quanta[scalar_irrad_df$depth==0 & scalar_irrad_df$wv < 400]),
-  2),'%'))
+water_cols |> group_by(E,sea) |>
+  filter(E=='E0' & depth %in% c(75,100,200) & between(wv,350,650)) |>
+ # filter(depth[depth%%2==0]) |>
+  ggplot(aes(x=wv,y=quanta,color=-depth)) + geom_point() +
+  theme_classic() + 
+  scale_y_log10() + facet_wrap(vars(sea))#,scales = "free_y")
 ```
- A non-negligible amount of UV light remains at 100m. We will ignore these photons in finding a scalar value of irradiance that we can match with the PAR-sensitive (400-700 nm) irradiance meter at Stazione Zoologica Anton Dohrn. 
-
+ 
+This is approximately in keeping with S. Johnsen's Optics of life Absorption chapter, which gives similar values for light at 500 nm (using irradiance with units masured in sq cm.)
+ 
+The bay of Naples is similar to the central Tyrrhenian and Ionian. 
+ 
+ 
+```{r warning=FALSE}
+# scalar_irrad_df |> group_by(depth) |>
+#   filter(depth %in% c(0,5,10,25,50,75,100)) |>
+#  # filter(depth[depth%%2==0]) |>
+#   ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() + theme_classic() #+
+#   #scale_y_log10()
+```
+ 
+Focus on the deepest three conditions. 
+ 
+```{r warning=FALSE}
+# scalar_irrad_df |> group_by(depth) |>
+#   filter(between(wv,350,700)) |>
+#   filter(depth %in% c(50,75,100)) |>
+#  # filter(depth[depth%%2==0]) |>
+#   ggplot(aes(x=wv,y=irrad,color=-depth)) + geom_point() + theme_classic() #+
+#   #scale_y_log10()
+```
+  
+Get the relative decrement from 50 m to 75 m depth and apply this to 75 m depth to interpolate 100 m depth.
+ 
+```{r warning=FALSE}
+# scalar_irrad_df |> group_by(depth) |>
+#   filter(wv < 700) |>
+#   filter(depth %in% 100) |>
+#  # filter(depth[depth%%2==0]) |>
+#   ggplot(aes(x=wv,y=irrad)) + geom_point() + 
+#   geom_col(width=5,alpha=.5,fill="lightblue",col="yellow") +
+#  # geom_smooth(method = "loess", span=0.1) + 
+#   theme_classic()
+```
+ 
+There is actually still some power below 400 nm (into near UV).
+ 
+```{r}
+# print(paste0('Percentage of photons below 400nm at 100 m depth: ',
+#   signif(100 * sum(scalar_irrad_df$quanta[
+#     scalar_irrad_df$wv < 400 & scalar_irrad_df$depth==100]) / 
+#     sum(scalar_irrad_df$quanta[scalar_irrad_df$depth==0 & scalar_irrad_df$wv < 400]),
+#   2),'%'))
+```
+ 
+A non-negligible amount of UV light remains at 100m. We will ignore these photons in finding a scalar value of irradiance that we can match with the PAR-sensitive (400-700 nm) irradiance meter at Stazione Zoologica Anton Dohrn. 
+ 
 ### Sum values
-
+ 
 How many moles of photons (400 - 700) are present in the light at various depths?
+ 
+ 
+```{r}
+water_cols |>
+  group_by(sea,depth) |>
+  filter(E=='E0', between(wv,400,700)) |>
+  summarise(irradiance = signif(sum(umol*5),4)) -> tot_phot_irrad
 
+head(tot_phot_irrad)
+```
+
+ 
+```{r}
+tot_phot_irrad |>
+  ggplot(aes(x=depth,y=irradiance,colour=sea)) + geom_point() +
+  geom_line() + scale_y_log10()  +
+  theme_classic() + theme(legend.position = c(.15,.2))
+```
+
+The downwelling light at 5 m in Naples is:
+
+```{r}
+print(paste(
+  tot_phot_irrad$irradiance[tot_phot_irrad$depth==5 & 
+                            tot_phot_irrad$sea=="Naples"],
+  'umol m^-2 s^-1.'
+))
+```
+ 
+The downwelling light at 10 m in Naples is:
+
+```{r}
+print(paste(
+  tot_phot_irrad$irradiance[tot_phot_irrad$depth==10 & 
+                            tot_phot_irrad$sea=="Naples"],
+  'umol m^-2 s^-1.'
+))
+```
+At 75 m:
+  
+```{r}
+print(paste(
+  tot_phot_irrad$irradiance[tot_phot_irrad$depth==75 & 
+                            tot_phot_irrad$sea=="Naples"],
+  'umol m^-2 s^-1.'
+))
+```
+
+At the deeper range, Naples is most similar to the Ionian. At 100 m in the Ionian sea is:
+  
+```{r}
+print(paste(
+  tot_phot_irrad$irradiance[tot_phot_irrad$depth==100 & 
+                            tot_phot_irrad$sea=="Ionian"],
+  'umol m^-2 s^-1.'
+))
+```
+ 
+
+ 
 Multiply the values by 5 (as the binwidth is 5 nm and values are per nm in that range).
-
+ 
 ```{r}
-scalar_irrad_df %>% filter(between(wv,400,700)) %>%
-  group_by(depth) %>%
-  summarise(umol    = signif(5 * sum(irrad),2),
-            umol_sd = signif(5 * sd(irrad),1),
-            quanta  = signif(5 * sum(irrad/1e6)*6.02214076e23,3),
-            ) -> irrad_sum_df
-qplot(data=irrad_sum_df,depth,umol,main='Micromoles of quanta between 400 nm and 700 nm at increasing depth (m)') + theme_classic() #+ ylim(0,.2)
+# scalar_irrad_df |> filter(between(wv,400,700)) |>
+#   group_by(depth) |>
+#   summarise(umol    = signif(5 * sum(irrad),2),
+#             umol_sd = signif(5 * sd(irrad),1),
+#             quanta  = signif(5 * sum(irrad/1e6)*6.02214076e23,3),
+#             ) -> irrad_sum_df
+# qplot(data=irrad_sum_df,depth,umol,main='Micromoles of quanta between 400 nm and 700 nm at increasing depth (m)') + theme_classic() #+ ylim(0,.2)
 ```
-
-#### Light level at 5m depth
-
-The downwelling light at 5 m is:
-
-```{r}
-sum(5 * E0_df$`5`[E0_df$wv >= 400 & E0_df$wv <= 700])
-```
-
-umol m^-2 s^-1.
+ 
 
 ## Converting Spectral Irradiance to Lux
-
+  
 ```{r}
 irrad2lux <- read.csv('spectral_irradiance_2_lux.csv')
 head(irrad2lux)
 ```
-
+  
 Planck's constant * speed of light / wavelength gives the energy of a photon in joules. This times the number of quanta per second gives the Wattage (1 W = 1 J / s). 
-
+ 
 ```{r}
 h <- 6.62607015e-34 # Planck's constant
 c <- 299792458e9    # speed of light in nm
 
-scalar_irrad_df |> select(-irrad_SD) |>
-  mutate(quanta_in_5nm_bin = quanta * 5) |>
-  mutate(W_in_5nm_bin = quanta_in_5nm_bin * h * (c/wv) ) -> Watts_5nm_bin
+water_cols |> #select(-irrad_SD) |>
+  #mutate(quanta_in_5nm_bin = quanta * 5) |>
+  mutate(W_in_5nm_bin = quanta * 5 * h * (c/wv) ) -> water_cols
 ```
-
+ 
 Add new 10 nm bins.
 
+So far, this method leaves in the peripheral values...
+ 
 ```{r}
-bins_10nm <- seq(from=385,to=865,by=10)
-Watts_5nm_bin %>% 
-  mutate(Wv10nm = bins_10nm[which.min(abs(bins_10nm - wv))]-5) -> Watts_5nm_bin
-head(Watts_5nm_bin)
-```
-Sum the power into the 10 nm bins. The values were previously multiplied by 5 to reverse the averaging per nm and the totals per 5 nm bin were added to get totals per 10 nm bin. These are below divided by 10 to get per nm averages, i.e. spectral irradiance. 
+bin10nm_fun <- function(wv) {
+  bins_10nm <- seq(from=375,to=875,by=10)
+  wv10nm <- bins_10nm[which.min(abs(bins_10nm - wv))]-5
+  return(wv10nm)
+}
 
+water_cols |> 
+  mutate(wv10nm = purrr::map_dbl(wv,bin10nm_fun)) -> water_cols
+head(water_cols)
+```
+ 
+Sum the power into the 10 nm bins. The values were previously multiplied by 5 to reverse the averaging per nm and the totals per 5 nm bin were added to get totals per 10 nm bin. These are below divided by 10 to get per nm averages, i.e. spectral irradiance. 
+ 
 ```{r}
-Watts_5nm_bin %>% group_by(Wv10nm,depth) %>% 
+water_cols |> group_by(wv10nm,depth,sea) |> 
   summarise(W_in_10nm_bin = sum(W_in_5nm_bin),
             W_in_10nm_per_nm = W_in_10nm_bin/10,
-            quanta_in_10nm_bin = sum(quanta_in_5nm_bin)) -> Watts_10nm_bin
+            #quanta_in_10nm_bin = sum(quanta_in_5nm_bin)
+            ) -> Watts_10nm_bin
 head(Watts_10nm_bin)
 ```
 
 Taken from Sönke's book
 
-> You can convert an irradiance spectrum E(λ) given in W/m2/nm to lux using:
+> You can convert an irradiance spectrum E($\lambda$) given in W/m2/nm to lux using:
 
-$ lux = 637 \sum_{\lambda=380}^{\lambda=780} E(\lambda) * \overline{y} (\lambda) * \Delta \lambda  \  $
+$$ lux = 637 \sum_{\lambda=380}^{\lambda=780} E(\lambda) * \overline{y} (\lambda) * \Delta \lambda $$
 
-where $\overline{y} (\lambda)$ is the photopic (light-adapted) luminosity curve for humans (given in the table below). In other words, to calculate lux, you multiply your irradiance spectrum (first binned into 10 nm intervals) by the luminosity curve and by $\Delta \lambda$ (which is **10 nm** in this case) and then add up all the products. Then multiply this final sum by 673. This is most easily done in a spreadsheet program. Remember that your irradiance must be in watts, since that’s how the luminosity curve was created. The values of (λ) below 400 nm and above 700 nm are small, so don’t worry if you don’t have irradiance data for this range. The table is in *'spectral_irradiance_2_lux.csv'*.
+where $\overline{y} (\lambda)$ is the photopic (light-adapted) luminosity curve for humans (given in the table below). In other words, to calculate lux, you multiply your irradiance spectrum (first binned into 10 nm intervals) by the luminosity curve and by $\Delta \lambda$ (which is **10 nm** in this case) and then add up all the products. Then multiply this final sum by 673. This is most easily done in a spreadsheet program. Remember that your irradiance must be in watts, since that’s how the luminosity curve was created. The values of ($\lambda$) below 400 nm and above 700 nm are small, so don’t worry if you don’t have irradiance data for this range. The table is in *'spectral_irradiance_2_lux.csv'*.
 
 
 The human photometric conversions are in 10 nm bins, whereas the Neapolitan values are in 5 nm bins. Therefore, average the Naples values into 10 nm bins, get as Watts (all above) and calculate. 
 
 Get only relevant depths and wvs
 
+**NEED TO REPLICATE THE Y BAR LAMBDA SET FOR EACH CONDITION OF DEPTH AND LOCATION**
+ 
 ```{r}
-Watts_10nm_bin %>% filter(depth == 0, between(Wv10nm,380,780)) -> Watts_10nm_0m
+Watts_10nm_bin |> group_by(sea) |>
+  filter(depth == 0, between(wv10nm,380,780)) -> Watts_10nm_0m
 Watts_10nm_0m$y_bar_lambda <- irrad2lux$y_bar_lambda
 head(Watts_10nm_0m)
 ```
 
+  
+ 
 ```{r}
-Watts_10nm_0m |>
+Watts_10nm_0m |> group_by(sea) |>
   mutate(lux = 637*(W_in_10nm_per_nm)*(y_bar_lambda*10),
-         klx = lux / 1000) -> Watts_10nm_0m
+        # klx = lux / 1000
+         ) -> Watts_10nm_0m
 head(Watts_10nm_0m)
 ```
-
+ 
+ 
+ 
 ```{r}
-sum(Watts_10nm_0m$klx)
+sum(Watts_10nm_0m$klx) 
 ```
-This value is slightly below what would be expected from direct sunlight.
-
+Need to dot this by group. 
+This value is slightly below what would be expected from direct sunlight. 
+ 
+ 
 
 
 
